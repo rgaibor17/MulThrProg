@@ -32,7 +32,7 @@ void printError(int error){
 */
 BMP_Image* createBMPImage(FILE* fptr) {
 
-  //Allocate memory for BMP_Image*;
+  //Allocate memory for BMP_Image*
   BMP_Image* bmp = (BMP_Image*)malloc(sizeof(BMP_Image));
   if (bmp == NULL) {
     printError(MEMORY_ERROR);
@@ -41,12 +41,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
   }
 
   //Read the first 54 bytes of the source into the header
-  fread(&bmp->header, sizeof(BMP_Header), 1, fptr);
-  if (!checkBMPValid(&bmp->header)) {
-    printError(VALID_ERROR);
-    free(bmp);
-    return NULL;
-  }
+  fread(&(bmp->header), sizeof(BMP_Header), 1, fptr);
 
   //Compute data size, width, height, and bytes per pixel
   int width = bmp->header.width_px;
@@ -69,7 +64,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
 
   // Allocate memory for each row of pixels
   for (int i = 0; i < bmp->norm_height; i++) {
-    bmp->pixels[i] = malloc(bmp->header.width_px * bmp->bytes_per_pixel);
+    bmp->pixels[i] = malloc(width * bmp->bytes_per_pixel);
     if (!bmp->pixels[i]) {
       printError(MEMORY_ERROR);
       // Free previously allocated memory before returning
@@ -100,10 +95,10 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
   }
 
   //Ensure the validity of the header before reading. Leave file pointer at the start of the image's data as well.
-  fread(&image->header, sizeof(BMP_Header), 1, srcFile);
+  fread(&(image->header), sizeof(BMP_Header), 1, srcFile);
   if (!checkBMPValid(&image->header)) {
     printError(VALID_ERROR);
-    return NULL;
+    return;
   }
 
   // Iterate through each row of pixels
@@ -127,8 +122,8 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
  * The functions open the source file and call to CreateBMPImage to load de data image.
 */
 void readImage(FILE *srcFile, BMP_Image * dataImage) {
-  if (srcFile == NULL || dataImage == NULL) {
-    fprintf(stderr, "Invalid input arguments: srcFile or dataImage is NULL.\n");
+  if (srcFile == NULL) {
+    fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
     return;
   }
 
@@ -191,8 +186,6 @@ void writeImage(char* destFileName, BMP_Image* dataImage) {
   // Close the file
   fclose(destFile);
   printf("Image successfully written to %s\n", destFileName);
-
-  fwrite(&dataImage->header, sizeof(BMP_Header), 1, destFileName);
 }
 
 /* The input argument is the BMP_Image pointer. The function frees memory of the BMP_Image.

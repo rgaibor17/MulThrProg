@@ -5,7 +5,7 @@
 int main(int argc, char **argv) {
   FILE* source;
   FILE* dest;
-  BMP_Image* image = NULL;
+  BMP_Image* image;
 
   if (argc != 3) {
     printError(ARGUMENT_ERROR);
@@ -23,13 +23,13 @@ int main(int argc, char **argv) {
 
   readImage(source, image);
 
-  if(!checkBMPValid(&image->header)) {
+  if(!checkBMPValid(&(image->header))) {
     printError(VALID_ERROR);
     exit(EXIT_FAILURE);
   }
 
   readImage(source, image);
-  printBMPHeader(&image->header);
+  printBMPHeader(&(image->header));
   printBMPImage(image);
 
   freeImage(image);
