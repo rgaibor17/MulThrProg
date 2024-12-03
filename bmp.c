@@ -32,7 +32,12 @@ void printError(int error){
 */
 BMP_Image* createBMPImage(FILE* fptr) {
 
-  //Allocate memory for BMP_Image*
+  if (fptr == NULL) {
+    printError(FILE_ERROR);
+    return NULL;
+  }
+
+  //Allocate memory for BMP_Image*;
   BMP_Image* bmp = (BMP_Image*)malloc(sizeof(BMP_Image));
   if (bmp == NULL) {
     printError(MEMORY_ERROR);
@@ -41,21 +46,30 @@ BMP_Image* createBMPImage(FILE* fptr) {
   }
 
   //Read the first 54 bytes of the source into the header
-  fread(&(bmp->header), sizeof(BMP_Header), 1, fptr);
+  // Read BMP header from file
+  if (fread(&(bmp->header), sizeof(BMP_Header), 1, fptr) != 1) {
+    free(bmp);
+    printError(FILE_ERROR);
+    return NULL;
+  }
+
+  // Check if the BMP file is valid
+  if (!checkBMPValid(&(bmp->header))) {
+    free(bmp);
+    printError(VALID_ERROR);
+    return NULL;
+  }
 
   //Compute data size, width, height, and bytes per pixel
-  int width = bmp->header.width_px;
-  int height = bmp->header.height_px;
-  short bitsPerPixel = bmp->header.bits_per_pixel;
-  int bytesPerPixel = bitsPerPixel / 8;
-  int dataSize = width * abs(height) * bytesPerPixel;
-
   //Normalizaed height and bytes per pixel
-  bmp->norm_height = abs(height);
-  bmp->bytes_per_pixel = bytesPerPixel;
+  bmp->bytes_per_pixel = bmp->header.bits_per_pixel / 8;
+  bmp->norm_height = abs(bmp->header.height_px);
+  int width = bmp->header.width_px;
+  int height = bmp->norm_height;
+  int dataSize = width * height * bmp->bytes_per_pixel;
 
-  //Allocate memory for image data
-  bmp->pixels = malloc(bmp->norm_height * bmp->bytes_per_pixel); // Rows
+  // Allocate memory for pixel data
+  bmp->pixels = (Pixel**)malloc(height * sizeof(Pixel*)); // Rows
   if (bmp->pixels == NULL) {
     printError(MEMORY_ERROR);
     free(bmp);
@@ -64,9 +78,10 @@ BMP_Image* createBMPImage(FILE* fptr) {
 
   // Allocate memory for each row of pixels
   for (int i = 0; i < bmp->norm_height; i++) {
-    bmp->pixels[i] = malloc(width * bmp->bytes_per_pixel);
-    if (!bmp->pixels[i]) {
+    bmp->pixels[i] = (Pixel*)malloc(width * sizeof(Pixel*));
+    if (bmp->pixels[i] == NULL) {
       printError(MEMORY_ERROR);
+      
       // Free previously allocated memory before returning
       for (int j = 0; j < i; j++) {
         free(bmp->pixels[j]);
@@ -83,38 +98,19 @@ BMP_Image* createBMPImage(FILE* fptr) {
  * The functions reads data from the source into the image data matriz of pixels.
 */
 void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
- if (srcFile == NULL || image == NULL || dataSize <= 0) {
+  if (srcFile == NULL || image == NULL || dataSize <= 0) {
     fprintf(stderr, "Invalid input arguments.\n");
     return;
   }
 
-  // Ensure pixels has been allocated memory
-  if (image->pixels == NULL) {
-    printError(MEMORY_ERROR);
-    return;
-  }
-
-  //Ensure the validity of the header before reading. Leave file pointer at the start of the image's data as well.
-  fread(&(image->header), sizeof(BMP_Header), 1, srcFile);
-  if (!checkBMPValid(&image->header)) {
-    printError(VALID_ERROR);
-    return;
-  }
-
   // Iterate through each row of pixels
+  int row_size = ((image->header.width_px * image->bytes_per_pixel + 3) / 4) * 4;
   for (int row = 0; row < image->norm_height; row++) {
     // Read each pixel in the row
-    for (int col = 0; col < image->header.width_px; col++) {
-      // Read 4 bytes (one Pixel) into the pixel structure
-      if (fread(&(image->pixels[row][col]), sizeof(Pixel), 1, srcFile) != 1) {
-        fprintf(stderr, "Error reading pixel at (%d, %d).\n", row, col);
-        return;
-      }
+    if (fread(image->pixels[row], row_size, 1, srcFile) != 1) {
+    fprintf(stderr, "Error reading pixel at (%d).\n", row);
+      return;
     }
-
-    // Skip the padding bytes for this row (if any)
-    int rowPadding = (4 - (image->header.width_px * sizeof(Pixel)) % 4) % 4;
-    fseek(srcFile, rowPadding, SEEK_CUR);
   }
 }
 
@@ -122,8 +118,8 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
  * The functions open the source file and call to CreateBMPImage to load de data image.
 */
 void readImage(FILE *srcFile, BMP_Image * dataImage) {
-  if (srcFile == NULL) {
-    fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
+  if (srcFile == NULL || dataImage == NULL) {
+    fprintf(stderr, "Invalid input arguments: srcFile or dataImage is NULL.\n");
     return;
   }
 
@@ -131,18 +127,24 @@ void readImage(FILE *srcFile, BMP_Image * dataImage) {
   rewind(srcFile);
 
   // Call CreateBMPImage to load the image data
-  dataImage = createBMPImage(srcFile);
-  if (dataImage == NULL) {
+  BMP_Image* image = createBMPImage(srcFile);
+  if (image == NULL) {
     fprintf(stderr, "Failed to create BMP image from source file.\n");
     return;
   }
+
+  // Read the pixel data
+  readImageData(srcFile, image, image->header.imagesize);
+
+  // Assign
+  *dataImage = *image;
 }
 
 /* The input arguments are the destination file name, and BMP_Image pointer.
  * The function write the header and image data into the destination file.
 */
 void writeImage(char* destFileName, BMP_Image* dataImage) {
- if (destFileName == NULL || dataImage == NULL || dataImage->pixels == NULL) {
+ if (destFileName == NULL || dataImage == NULL) {
     fprintf(stderr, "Invalid arguments: destFileName or dataImage is NULL.\n");
     return;
   }
@@ -161,25 +163,15 @@ void writeImage(char* destFileName, BMP_Image* dataImage) {
     return;
   }
 
- // Calculate padding for BMP row alignment (rows must be multiple of 4 bytes)
-  int rowPadding = (4 - (dataImage->header.width_px * sizeof(Pixel)) % 4) % 4;
-  uint8_t padding[3] = {0, 0, 0}; // Maximum padding is 3 bytes
+  // Write the pixel data
+  int row_size = ((dataImage->header.width_px * dataImage->bytes_per_pixel + 3) / 4) * 4;
 
   // Write pixel data row by row
   for (int row = 0; row < dataImage->norm_height; row++) {
-    if (fwrite(dataImage->pixels[row], sizeof(Pixel), dataImage->header.width_px, destFile) != dataImage->header.width_px) {
+    if (fwrite(dataImage->pixels[row], row_size, 1, destFile) != dataImage->header.width_px) {
       fprintf(stderr, "Error: Failed to write pixel data for row %d.\n", row);
       fclose(destFile);
       return;
-    }
-
-    // Write padding bytes, if any
-    if (rowPadding > 0) {
-      if (fwrite(padding, 1, rowPadding, destFile) != rowPadding) {
-        fprintf(stderr, "Error: Failed to write padding for row %d.\n", row);
-        fclose(destFile);
-        return;
-      }
     }
   }
 

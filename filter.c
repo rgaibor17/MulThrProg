@@ -5,140 +5,80 @@
 #include <pthread.h>
 #include <stdint.h>
 
-void apply(BMP_Image * imageIn, BMP_Image * imageOut) {
-    int width = imageIn->header.width_px;
-    int height = imageIn->norm_height;
+/* Helper function to apply a 3x3 blur filter on a single pixel. */
+void applyFilter(BMP_Image *imageIn, BMP_Image *imageOut, int x, int y) {
+    int sumRed = 0, sumGreen = 0, sumBlue = 0;
+    int count = 0;
 
-    // Box filter size (3x3)
-    int filterSize = 3;
-    int halfFilter = filterSize / 2;
-
-    // Iterate over each pixel in the input image (ignoring the borders for now)
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            int rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-            int count = 0;
-
-            // Apply the 3x3 box filter (neighboring pixels)
-            for (int ky = -halfFilter; ky <= halfFilter; ky++) {
-                for (int kx = -halfFilter; kx <= halfFilter; kx++) {
-                    int nx = x + kx;
-                    int ny = y + ky;
-
-                    // Check bounds for pixel location
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        // Access the pixel using the Pixel structure
-                        Pixel *currentPixel = &imageIn->pixels[ny][nx];
-
-                        // Accumulate the color values (RGBA)
-                        rSum += currentPixel->red;
-                        gSum += currentPixel->green;
-                        bSum += currentPixel->blue;
-                        aSum += currentPixel->alpha;
-                        count++;
-                    }
-                }
+    // 3x3 kernel loop (including the pixel itself and its 8 neighbors)
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            int nx = x + i, ny = y + j;
+            if (nx >= 0 && nx < imageIn->header.width_px && ny >= 0 && ny < imageIn->norm_height) {
+                sumRed += imageIn->pixels[ny][nx].red;
+                sumGreen += imageIn->pixels[ny][nx].green;
+                sumBlue += imageIn->pixels[ny][nx].blue;
+                count++;
             }
+        }
+    }
 
-            // Set the new pixel value in the output image
-            Pixel *outPixel = &imageOut->pixels[y][x];
-            outPixel->red = rSum / count;
-            outPixel->green = gSum / count;
-            outPixel->blue = bSum / count;
-            outPixel->alpha = aSum / count;  // Assuming alpha blending is desired
+    // Set the blurred pixel to the average color value
+    imageOut->pixels[y][x].red = sumRed / count;
+    imageOut->pixels[y][x].green = sumGreen / count;
+    imageOut->pixels[y][x].blue = sumBlue / count;
+}
+
+/* Function to apply the blur filter to the entire image. */
+void apply(BMP_Image *imageIn, BMP_Image *imageOut) {
+    // Loop through all pixels and apply the filter
+    for (int y = 0; y < imageIn->norm_height; y++) {
+        for (int x = 0; x < imageIn->header.width_px; x++) {
+            applyFilter(imageIn, imageOut, x, y);
         }
     }
 }
 
+/* Struct to pass arguments to each thread. */
 typedef struct {
     BMP_Image *imageIn;
     BMP_Image *imageOut;
-    int boxFilter[3][3];
     int startRow;
     int endRow;
 } ThreadArgs;
 
+/* Worker function for each thread. This will process a slice of the image. */
 void *filterThreadWorker(void *args) {
     ThreadArgs *threadArgs = (ThreadArgs *)args;
     BMP_Image *imageIn = threadArgs->imageIn;
     BMP_Image *imageOut = threadArgs->imageOut;
-    int boxFilter[3][3];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            boxFilter[i][j] = threadArgs->boxFilter[i][j];
-        }
-    }
-    
-    int width = imageIn->header.width_px;
-    int height = imageIn->norm_height;
 
-    // Apply the box filter to the assigned portion of the image (rows from startRow to endRow)
     for (int y = threadArgs->startRow; y < threadArgs->endRow; y++) {
-        for (int x = 0; x < width; x++) {
-            int rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-            int count = 0;
-
-            // Apply the 3x3 box filter (neighboring pixels)
-            for (int ky = -1; ky <= 1; ky++) {
-                for (int kx = -1; kx <= 1; kx++) {
-                    int nx = x + kx;
-                    int ny = y + ky;
-
-                    // Check bounds for pixel location
-                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                        // Access the pixel using the Pixel structure
-                        Pixel *currentPixel = &imageIn->pixels[ny][nx];
-
-                        // Accumulate the color values (RGBA)
-                        rSum += currentPixel->red;
-                        gSum += currentPixel->green;
-                        bSum += currentPixel->blue;
-                        aSum += currentPixel->alpha;
-                        count++;
-                    }
-                }
-            }
-
-            // Set the new pixel value in the output image
-            Pixel *outPixel = &imageOut->pixels[y][x];
-            outPixel->red = rSum / count;
-            outPixel->green = gSum / count;
-            outPixel->blue = bSum / count;
-            outPixel->alpha = aSum / count;  // Assuming alpha blending is desired
+        for (int x = 0; x < imageIn->header.width_px; x++) {
+            applyFilter(imageIn, imageOut, x, y);
         }
     }
 
-    pthread_exit(NULL);
+    return NULL;
 }
 
+/* Function to apply the blur filter to the entire image in parallel. */
 void applyParallel(BMP_Image *imageIn, BMP_Image *imageOut, int boxFilter[3][3], int numThreads) {
-    int width = imageIn->header.width_px;
-    int height = imageIn->norm_height;
-
-    // Divide the image into rows and assign each thread a portion of rows
     pthread_t *threads = (pthread_t *)malloc(numThreads * sizeof(pthread_t));
     ThreadArgs *threadArgs = (ThreadArgs *)malloc(numThreads * sizeof(ThreadArgs));
 
-    int rowsPerThread = height / numThreads;
-
-    // Common to all threads
+    int rowsPerThread = imageIn->norm_height / numThreads;
     for (int i = 0; i < numThreads; i++) {
         threadArgs[i].imageIn = imageIn;
         threadArgs[i].imageOut = imageOut;
-        for (int j = 0; j < 3; j++) {
-            for (int k = 0; k < 3; k++) {
-                threadArgs[i].boxFilter[j][k] = boxFilter[j][k];
-            }
-        }
-
         threadArgs[i].startRow = i * rowsPerThread;
-        threadArgs[i].endRow = (i == numThreads - 1) ? height : (i + 1) * rowsPerThread; // Avoid jumping to a non-existing index
+        threadArgs[i].endRow = (i == numThreads - 1) ? imageIn->norm_height : (i + 1) * rowsPerThread; // Avoid jumping to a non-existing index
 
-        // Create the thread to process the assigned rows
+        // Create threads
         pthread_create(&threads[i], NULL, filterThreadWorker, (void *)&threadArgs[i]);
     }
 
-    // Wait for all threads to finish processing
+    // Wait for all threads to complete
     for (int i = 0; i < numThreads; i++) {
         pthread_join(threads[i], NULL);
     }
