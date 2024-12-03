@@ -66,7 +66,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
   bmp->norm_height = abs(bmp->header.height_px);
   int width = bmp->header.width_px;
   int height = bmp->norm_height;
-  int dataSize = width * height * bmp->bytes_per_pixel;
+  bmp->header.imagesize = width * height * bmp->bytes_per_pixel;
 
   // Allocate memory for pixel data
   bmp->pixels = (Pixel**)malloc(height * sizeof(Pixel*)); // Rows
@@ -104,7 +104,8 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
   }
 
   // Iterate through each row of pixels
-  int row_size = ((image->header.width_px * image->bytes_per_pixel + 3) / 4) * 4;
+  int row_size = image->header.width_px * image->bytes_per_pixel;
+  printf("row size: %d\n", row_size);
   for (int row = 0; row < image->norm_height; row++) {
     // Read each pixel in the row
     if (fread(image->pixels[row], row_size, 1, srcFile) != 1) {
@@ -118,8 +119,8 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
  * The functions open the source file and call to CreateBMPImage to load de data image.
 */
 void readImage(FILE *srcFile, BMP_Image * dataImage) {
-  if (srcFile == NULL || dataImage == NULL) {
-    fprintf(stderr, "Invalid input arguments: srcFile or dataImage is NULL.\n");
+  if (srcFile == NULL) {
+    fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
     return;
   }
 
@@ -127,17 +128,14 @@ void readImage(FILE *srcFile, BMP_Image * dataImage) {
   rewind(srcFile);
 
   // Call CreateBMPImage to load the image data
-  BMP_Image* image = createBMPImage(srcFile);
-  if (image == NULL) {
+  dataImage = createBMPImage(srcFile);
+  if (dataImage == NULL) {
     fprintf(stderr, "Failed to create BMP image from source file.\n");
     return;
   }
 
   // Read the pixel data
-  readImageData(srcFile, image, image->header.imagesize);
-
-  // Assign
-  *dataImage = *image;
+  readImageData(srcFile, dataImage, dataImage->header.size);
 }
 
 /* The input arguments are the destination file name, and BMP_Image pointer.
@@ -164,7 +162,8 @@ void writeImage(char* destFileName, BMP_Image* dataImage) {
   }
 
   // Write the pixel data
-  int row_size = ((dataImage->header.width_px * dataImage->bytes_per_pixel + 3) / 4) * 4;
+  int row_size = dataImage->header.width_px * dataImage->bytes_per_pixel;
+  printf("row size: %d\n", row_size);
 
   // Write pixel data row by row
   for (int row = 0; row < dataImage->norm_height; row++) {
@@ -200,20 +199,28 @@ void freeImage(BMP_Image* image) {
  * DO NOT MODIFY THIS FUNCTION
 */
 int checkBMPValid(BMP_Header* header) {
-  // Make sure this is a BMP file
+  // Print the header fields to debug the issue
+  printf("Checking BMP header...\n");
+  printf("type: 0x%x\n", header->type);
+  printf("bits_per_pixel: %d\n", header->bits_per_pixel);
+  printf("planes: %d\n", header->planes);
+  printf("compression: %d\n", header->compression);
+
+  // Check if the BMP file is valid
   if (header->type != 0x4d42) {
+    printf("Invalid BMP magic number\n");
     return FALSE;
   }
-  // Make sure we are getting 24 bits per pixel
-  if (header->bits_per_pixel != 24) {
+  if (header->bits_per_pixel != 32) {
+    printf("Invalid bits_per_pixel: expected 32, got %d\n", header->bits_per_pixel);
     return FALSE;
   }
-  // Make sure there is only one image plane
   if (header->planes != 1) {
+    printf("Invalid planes: expected 1, got %d\n", header->planes);
     return FALSE;
   }
-  // Make sure there is no compression
   if (header->compression != 0) {
+    printf("Invalid compression: expected 0, got %d\n", header->compression);
     return FALSE;
   }
   return TRUE;
