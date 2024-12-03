@@ -78,7 +78,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
 
   // Allocate memory for each row of pixels
   for (int i = 0; i < bmp->norm_height; i++) {
-    bmp->pixels[i] = (Pixel*)malloc(width * sizeof(Pixel*));
+    bmp->pixels[i] = (Pixel*)malloc(sizeof(Pixel*));
     if (bmp->pixels[i] == NULL) {
       printError(MEMORY_ERROR);
       
@@ -104,12 +104,10 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
   }
 
   // Iterate through each row of pixels
-  int row_size = image->header.width_px * image->bytes_per_pixel;
-  printf("row size: %d\n", row_size);
-  for (int row = 0; row < image->norm_height; row++) {
+  for (int i = 0; i < image->norm_height; i++) {
     // Read each pixel in the row
-    if (fread(image->pixels[row], row_size, 1, srcFile) != 1) {
-    fprintf(stderr, "Error reading pixel at (%d).\n", row);
+    if (fread(image->pixels[i], sizeof(Pixel), 1, srcFile) != 1) {
+      fprintf(stderr, "Error reading pixel at (%d).\n", i);
       return;
     }
   }
@@ -136,6 +134,8 @@ void readImage(FILE *srcFile, BMP_Image * dataImage) {
 
   // Read the pixel data
   readImageData(srcFile, dataImage, dataImage->header.size);
+  // Reset the file pointer to the beginning of the file
+  rewind(srcFile);
 }
 
 /* The input arguments are the destination file name, and BMP_Image pointer.
@@ -201,10 +201,7 @@ void freeImage(BMP_Image* image) {
 int checkBMPValid(BMP_Header* header) {
   // Print the header fields to debug the issue
   printf("Checking BMP header...\n");
-  printf("type: 0x%x\n", header->type);
-  printf("bits_per_pixel: %d\n", header->bits_per_pixel);
-  printf("planes: %d\n", header->planes);
-  printf("compression: %d\n", header->compression);
+  printBMPHeader(header);
 
   // Check if the BMP file is valid
   if (header->type != 0x4d42) {
