@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 #ifndef _BMP_H_
 #define _BMP_H_
@@ -64,7 +65,7 @@ typedef struct BMP_Image {
 void printError(int error);
 BMP_Image* createBMPImage();
 void readImageData(FILE *srcFile, BMP_Image *dataImage, int dataSize);
-void readImage(FILE *srcFile, BMP_Image *dataImage);
+void readImage(FILE *srcFile, BMP_Image **dataImage);
 void writeImage(char* destFileName, BMP_Image* dataImage);
 void freeImage(BMP_Image* image);
 int checkBMPValid(BMP_Header* header);

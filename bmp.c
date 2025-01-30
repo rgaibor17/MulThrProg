@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdio.h>
 
 #include "bmp.h"
 /* USE THIS FUNCTION TO PRINT ERROR MESSAGES
@@ -43,6 +42,11 @@ BMP_Image* createBMPImage(FILE* fptr) {
   //Read the first 54 bytes of the source into the header
   fread(&(bmp->header), sizeof(BMP_Header), 1, fptr);
 
+  if (!checkBMPValid(&(bmp->header))) {
+    printError(VALID_ERROR);
+    exit(EXIT_FAILURE);
+  }
+
   //Compute data size, width, height, and bytes per pixel
   int width = bmp->header.width_px;
   int height = bmp->header.height_px;
@@ -55,19 +59,20 @@ BMP_Image* createBMPImage(FILE* fptr) {
   bmp->bytes_per_pixel = bytesPerPixel;
 
   //Allocate memory for image data
-  bmp->pixels = malloc(bmp->norm_height * bmp->bytes_per_pixel); // Rows
+  bmp->pixels = (Pixel**)malloc(bmp->norm_height * sizeof(Pixel*));
   if (bmp->pixels == NULL) {
     printError(MEMORY_ERROR);
+    free(bmp->pixels);
     free(bmp);
     return NULL;
   }
 
   // Allocate memory for each row of pixels
   for (int i = 0; i < bmp->norm_height; i++) {
-    bmp->pixels[i] = malloc(width * bmp->bytes_per_pixel);
+    bmp->pixels[i] = (Pixel*)malloc(width * sizeof(Pixel)); //Rows
     if (!bmp->pixels[i]) {
       printError(MEMORY_ERROR);
-      // Free previously allocated memory before returning
+      //Free previously allocated memory before returning
       for (int j = 0; j < i; j++) {
         free(bmp->pixels[j]);
       }
@@ -94,13 +99,6 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
     return;
   }
 
-  //Ensure the validity of the header before reading. Leave file pointer at the start of the image's data as well.
-  fread(&(image->header), sizeof(BMP_Header), 1, srcFile);
-  if (!checkBMPValid(&image->header)) {
-    printError(VALID_ERROR);
-    return;
-  }
-
   // Iterate through each row of pixels
   for (int row = 0; row < image->norm_height; row++) {
     // Read each pixel in the row
@@ -111,17 +109,13 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
         return;
       }
     }
-
-    // Skip the padding bytes for this row (if any)
-    int rowPadding = (4 - (image->header.width_px * sizeof(Pixel)) % 4) % 4;
-    fseek(srcFile, rowPadding, SEEK_CUR);
   }
 }
 
 /* The input arguments are the pointer of the binary file, and the image data pointer.
  * The functions open the source file and call to CreateBMPImage to load de data image.
 */
-void readImage(FILE *srcFile, BMP_Image * dataImage) {
+void readImage(FILE *srcFile, BMP_Image ** dataImage) {
   if (srcFile == NULL) {
     fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
     return;
@@ -131,11 +125,17 @@ void readImage(FILE *srcFile, BMP_Image * dataImage) {
   rewind(srcFile);
 
   // Call CreateBMPImage to load the image data
-  dataImage = createBMPImage(srcFile);
+  *dataImage = createBMPImage(srcFile);
   if (dataImage == NULL) {
     fprintf(stderr, "Failed to create BMP image from source file.\n");
     return;
   }
+
+  //Call readImageData to fill image object with data from the source file given
+  readImageData(srcFile, *dataImage, (*dataImage)->header.size);
+
+  // Reset the file pointer to the beginning of the file
+  rewind(srcFile);
 }
 
 /* The input arguments are the destination file name, and BMP_Image pointer.
@@ -212,8 +212,8 @@ int checkBMPValid(BMP_Header* header) {
   if (header->type != 0x4d42) {
     return FALSE;
   }
-  // Make sure we are getting 24 bits per pixel
-  if (header->bits_per_pixel != 24) {
+  // Make sure we are getting 24 bits per pixel (Changed to 32 bits as per the assignemnt's instructions)
+  if (header->bits_per_pixel != 32) {
     return FALSE;
   }
   // Make sure there is only one image plane

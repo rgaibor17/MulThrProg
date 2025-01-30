@@ -1,6 +1,6 @@
 GCC = gcc
-CFLAGS = -Wall -Wshadow
-OBJS = ex5.o bmp.o
+CFLAGS = -Wall -Wshadow -g
+OBJS = ex5.o bmp.o filter.o
 
 ex5: $(OBJS)
 	$(GCC) $(CFLAGS) $(OBJS) -o $@
