@@ -5,16 +5,11 @@
 #include <pthread.h>
 #include <stdint.h>
 
-void apply(BMP_Image * imageIn, BMP_Image * imageOut) {
+void apply(BMP_Image * imageIn, BMP_Image * imageOut, int boxFilter[3][3]) {
     int width = imageIn->header.width_px;
     int height = imageIn->norm_height;
 
     // Box filter size (3x3)
-    int boxFilter[3][3] = {
-        {1, 2, 1},
-        {2, 4, 2},
-        {1, 2, 1}
-    };
     int filterSize = 3;
     int halfFilter = filterSize / 2;
 

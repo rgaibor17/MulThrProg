@@ -39,6 +39,9 @@ BMP_Image* createBMPImage(FILE* fptr) {
     return NULL;
   }
 
+  // Reset the file pointer to the beginning of the file
+  rewind(fptr);
+
   //Read the first 54 bytes of the source into the header
   fread(&(bmp->header), sizeof(BMP_Header), 1, fptr);
 
@@ -120,9 +123,6 @@ void readImage(FILE *srcFile, BMP_Image ** dataImage) {
     fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
     return;
   }
-
-  // Reset the file pointer to the beginning of the file
-  rewind(srcFile);
 
   // Call CreateBMPImage to load the image data
   *dataImage = createBMPImage(srcFile);
