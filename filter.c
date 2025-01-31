@@ -112,7 +112,7 @@ void *filterThreadWorker(void *args) {
 }
 
 void applyParallel(BMP_Image *imageIn, BMP_Image *imageOut, int boxFilter[3][3], int numThreads) {
-    int width = imageIn->header.width_px;
+    //int width = imageIn->header.width_px;
     int height = imageIn->norm_height;
 
     // Divide the image into rows and assign each thread a portion of rows

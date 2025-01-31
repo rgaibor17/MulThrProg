@@ -66,7 +66,7 @@ void printError(int error);
 BMP_Image* createBMPImage();
 void readImageData(FILE *srcFile, BMP_Image *dataImage, int dataSize);
 void readImage(FILE *srcFile, BMP_Image **dataImage);
-void writeImage(char* destFileName, BMP_Image* dataImage);
+void writeImage(char *destFilename, FILE *destFile, BMP_Image* dataImage);
 void freeImage(BMP_Image* image);
 int checkBMPValid(BMP_Header* header);
 void printBMPHeader(BMP_Header* header);

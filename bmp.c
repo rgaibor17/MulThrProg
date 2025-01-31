@@ -30,13 +30,17 @@ void printError(int error){
  * Return image;
 */
 BMP_Image* createBMPImage(FILE* fptr) {
+  if (fptr == NULL) {
+    fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
+    exit(EXIT_FAILURE);
+  }
 
   //Allocate memory for BMP_Image*
   BMP_Image* bmp = (BMP_Image*)malloc(sizeof(BMP_Image));
   if (bmp == NULL) {
     printError(MEMORY_ERROR);
     free(bmp);
-    return NULL;
+    exit(EXIT_FAILURE);
   }
 
   // Reset the file pointer to the beginning of the file
@@ -55,7 +59,8 @@ BMP_Image* createBMPImage(FILE* fptr) {
   int height = bmp->header.height_px;
   short bitsPerPixel = bmp->header.bits_per_pixel;
   int bytesPerPixel = bitsPerPixel / 8;
-  int dataSize = width * abs(height) * bytesPerPixel;
+
+  //int dataSize = width * abs(height) * bytesPerPixel;
 
   //Normalizaed height and bytes per pixel
   bmp->norm_height = abs(height);
@@ -67,7 +72,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
     printError(MEMORY_ERROR);
     free(bmp->pixels);
     free(bmp);
-    return NULL;
+    exit(EXIT_FAILURE);
   }
 
   // Allocate memory for each row of pixels
@@ -81,7 +86,7 @@ BMP_Image* createBMPImage(FILE* fptr) {
       }
       free(bmp->pixels);
       free(bmp);
-      return NULL;
+      exit(EXIT_FAILURE);
     }
   }
   return bmp;
@@ -93,13 +98,13 @@ BMP_Image* createBMPImage(FILE* fptr) {
 void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
  if (srcFile == NULL || image == NULL || dataSize <= 0) {
     fprintf(stderr, "Invalid input arguments.\n");
-    return;
+    exit(EXIT_FAILURE);
   }
 
   // Ensure pixels has been allocated memory
   if (image->pixels == NULL) {
     printError(MEMORY_ERROR);
-    return;
+    exit(EXIT_FAILURE);
   }
 
   // Iterate through each row of pixels
@@ -109,7 +114,7 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
       // Read 4 bytes (one Pixel) into the pixel structure
       if (fread(&(image->pixels[row][col]), sizeof(Pixel), 1, srcFile) != 1) {
         fprintf(stderr, "Error reading pixel at (%d, %d).\n", row, col);
-        return;
+        exit(EXIT_FAILURE);
       }
     }
   }
@@ -119,16 +124,11 @@ void readImageData(FILE* srcFile, BMP_Image * image, int dataSize) {
  * The functions open the source file and call to CreateBMPImage to load de data image.
 */
 void readImage(FILE *srcFile, BMP_Image ** dataImage) {
-  if (srcFile == NULL) {
-    fprintf(stderr, "Invalid input arguments: srcFile is NULL.\n");
-    return;
-  }
-
   // Call CreateBMPImage to load the image data
   *dataImage = createBMPImage(srcFile);
   if (dataImage == NULL) {
     fprintf(stderr, "Failed to create BMP image from source file.\n");
-    return;
+    exit(EXIT_FAILURE);
   }
 
   //Call readImageData to fill image object with data from the source file given
@@ -141,24 +141,17 @@ void readImage(FILE *srcFile, BMP_Image ** dataImage) {
 /* The input arguments are the destination file name, and BMP_Image pointer.
  * The function write the header and image data into the destination file.
 */
-void writeImage(char* destFileName, BMP_Image* dataImage) {
- if (destFileName == NULL || dataImage == NULL || dataImage->pixels == NULL) {
-    fprintf(stderr, "Invalid arguments: destFileName or dataImage is NULL.\n");
-    return;
-  }
-
-  // Open the destination file for writing in binary mode
-  FILE* destFile = fopen(destFileName, "wb");
-  if (destFile == NULL) {
-    printError(FILE_ERROR);
-    return;
+void writeImage(char *destFilename, FILE *destFile, BMP_Image* dataImage) {
+ if (destFile == NULL || dataImage == NULL || dataImage->pixels == NULL) {
+    fprintf(stderr, "Invalid arguments: destFile or dataImage is NULL.\n");
+    exit(EXIT_FAILURE);
   }
 
   // Write the BMP file header
   if (fwrite(&(dataImage->header), sizeof(BMP_Header), 1, destFile) != 1) {
     fprintf(stderr, "Error: Failed to write header.\n");
     fclose(destFile);
-    return;
+    exit(EXIT_FAILURE);
   }
 
  // Calculate padding for BMP row alignment (rows must be multiple of 4 bytes)
@@ -170,7 +163,7 @@ void writeImage(char* destFileName, BMP_Image* dataImage) {
     if (fwrite(dataImage->pixels[row], sizeof(Pixel), dataImage->header.width_px, destFile) != dataImage->header.width_px) {
       fprintf(stderr, "Error: Failed to write pixel data for row %d.\n", row);
       fclose(destFile);
-      return;
+      exit(EXIT_FAILURE);
     }
 
     // Write padding bytes, if any
@@ -178,14 +171,12 @@ void writeImage(char* destFileName, BMP_Image* dataImage) {
       if (fwrite(padding, 1, rowPadding, destFile) != rowPadding) {
         fprintf(stderr, "Error: Failed to write padding for row %d.\n", row);
         fclose(destFile);
-        return;
+        exit(EXIT_FAILURE);
       }
     }
   }
 
-  // Close the file
-  fclose(destFile);
-  printf("Image successfully written to %s\n", destFileName);
+  printf("Image successfully written to %s\n", destFilename);
 }
 
 /* The input argument is the BMP_Image pointer. The function frees memory of the BMP_Image.
