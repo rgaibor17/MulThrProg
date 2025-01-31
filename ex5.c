@@ -30,9 +30,8 @@ int main(int argc, char **argv) {
 
   readImage(source, &imageIn);
   imageOut = createBMPImage(source);
-  applyParallel(imageIn, imageOut, boxFilter, numThreads);
+  apply(imageIn, imageOut);
 
-  readImage(source, &imageOut);
   printBMPHeader(&(imageOut->header));
   printBMPImage(imageOut);
   writeImage("destination.bmp", imageOut);

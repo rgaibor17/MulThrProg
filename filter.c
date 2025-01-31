@@ -10,6 +10,11 @@ void apply(BMP_Image * imageIn, BMP_Image * imageOut) {
     int height = imageIn->norm_height;
 
     // Box filter size (3x3)
+    int boxFilter[3][3] = {
+        {1, 2, 1},
+        {2, 4, 2},
+        {1, 2, 1}
+    };
     int filterSize = 3;
     int halfFilter = filterSize / 2;
 
@@ -31,10 +36,10 @@ void apply(BMP_Image * imageIn, BMP_Image * imageOut) {
                         Pixel *currentPixel = &imageIn->pixels[ny][nx];
 
                         // Accumulate the color values (RGBA)
-                        rSum += currentPixel->red;
-                        gSum += currentPixel->green;
-                        bSum += currentPixel->blue;
-                        aSum += currentPixel->alpha;
+                        rSum += currentPixel->red * boxFilter[ky + 1][kx + 1];
+                        gSum += currentPixel->green * boxFilter[ky + 1][kx + 1];
+                        bSum += currentPixel->blue * boxFilter[ky + 1][kx + 1];
+                        aSum += currentPixel->alpha * boxFilter[ky + 1][kx + 1];
                         count++;
                     }
                 }
@@ -90,10 +95,10 @@ void *filterThreadWorker(void *args) {
                         Pixel *currentPixel = &imageIn->pixels[ny][nx];
 
                         // Accumulate the color values (RGBA)
-                        rSum += currentPixel->red;
-                        gSum += currentPixel->green;
-                        bSum += currentPixel->blue;
-                        aSum += currentPixel->alpha;
+                        rSum += currentPixel->red * boxFilter[ky + 1][kx + 1];
+                        gSum += currentPixel->green * boxFilter[ky + 1][kx + 1];
+                        bSum += currentPixel->blue * boxFilter[ky + 1][kx + 1];
+                        aSum += currentPixel->alpha * boxFilter[ky + 1][kx + 1];
                         count++;
                     }
                 }
